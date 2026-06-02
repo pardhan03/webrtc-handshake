@@ -1,26 +1,31 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 
-const Reciever = () => {
+const Receiver = () => {
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
     const socket = new WebSocket('ws://localhost:8080');
+    let pc: RTCPeerConnection | null = null;
+
     socket.onopen = () => {
       console.log('connection established');
-      socket.send(JSON.stringify({ type: "reciever" }));
+      socket.send(JSON.stringify({ type: "receiver" }));
     }
 
-    if (!socket) return;
-
     socket.onmessage = async (event) => {
-      let pc: RTCPeerConnection | null = null;
       const message = JSON.parse(event.data);
+
       if (message.type === "createOffer") {
         pc = new RTCPeerConnection();
-        pc.setRemoteDescription(message.sdp);
-        const answer = await pc.createAnswer();
-        await pc.setLocalDescription(answer);
 
-        if (!pc) return;
+        // ontrack MUST be registered BEFORE setRemoteDescription
+        pc.ontrack = (event) => {
+          console.log('track received');
+          if (videoRef.current) {
+            videoRef.current.srcObject = new MediaStream([event.track]);
+            videoRef.current.play();
+          }
+        }
 
         pc.onicecandidate = (event) => {
           if (event.candidate) {
@@ -29,16 +34,20 @@ const Reciever = () => {
               candidate: event.candidate,
             }))
           }
-        };
+        }
+
+        await pc.setRemoteDescription(message.sdp);
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
 
         socket.send(JSON.stringify({
           type: 'createAnswer',
           sdp: pc.localDescription
         }));
-      } else if (message?.type == "iceCandidate") {
-        if (pc !== null) {
-          // @ts-ignore
-          pc.addIceCandidate(message.candidate)
+
+      } else if (message.type === "iceCandidate") {
+        if (pc) {
+          await pc.addIceCandidate(message.candidate);
         }
       }
     }
@@ -46,9 +55,10 @@ const Reciever = () => {
 
   return (
     <div>
-      <p>Reciver</p>
+      <p>Receiver</p>
+      <video ref={videoRef} autoPlay playsInline />
     </div>
   )
 }
 
-export default Reciever
+export default Receiver
