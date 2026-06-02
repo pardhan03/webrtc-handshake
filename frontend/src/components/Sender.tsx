@@ -17,8 +17,16 @@ const Sender = () => {
     if (!socket) return;
 
     const pc = new RTCPeerConnection(); // crreat an offer
-    const offer = await pc.createOffer(); //sdp
-    await pc.setLocalDescription(offer);
+
+    pc.onnegotiationneeded = async () => {
+      const offer = await pc.createOffer(); //sdp
+      await pc.setLocalDescription(offer);
+      socket?.send(JSON.stringify({
+        type: "createOffer",
+        sdp: pc.localDescription
+      }))
+    }
+
     if (!pc) return;
 
     pc.onicecandidate = (event) => {
@@ -31,19 +39,20 @@ const Sender = () => {
     }
 
     // trickle ice candidate
-    socket?.send(JSON.stringify({
-      type: "createOffer",
-      sdp: pc.localDescription
-    }))
-
     socket.onmessage = (event) => {
       const data = JSON.parse(event.data);
       if (data?.type === "createAnswer") {
         pc.setRemoteDescription(data.sdp);
-      } else if(data?.type == "iceCandidate") {
+      } else if (data?.type == "iceCandidate") {
         pc.addIceCandidate(data.candidate)
       }
     }
+
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: true,
+      audio: false,
+    })
+    pc.addTrack(stream.getVideoTracks()[0]);
   }
 
   return (
