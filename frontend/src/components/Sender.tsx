@@ -19,6 +19,18 @@ const Sender = () => {
     const pc = new RTCPeerConnection(); // crreat an offer
     const offer = await pc.createOffer(); //sdp
     await pc.setLocalDescription(offer);
+    if (!pc) return;
+
+    pc.onicecandidate = (event) => {
+      if (event.candidate) {
+        socket.send(JSON.stringify({
+          type: 'iceCandidate',
+          candidate: event.candidate,
+        }))
+      }
+    }
+
+    // trickle ice candidate
     socket?.send(JSON.stringify({
       type: "createOffer",
       sdp: pc.localDescription
@@ -28,6 +40,8 @@ const Sender = () => {
       const data = JSON.parse(event.data);
       if (data?.type === "createAnswer") {
         pc.setRemoteDescription(data.sdp);
+      } else if(data?.type == "iceCandidate") {
+        pc.addIceCandidate(data.candidate)
       }
     }
   }

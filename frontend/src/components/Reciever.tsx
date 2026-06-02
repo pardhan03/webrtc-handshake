@@ -9,19 +9,37 @@ const Reciever = () => {
       socket.send(JSON.stringify({ type: "reciever" }));
     }
 
-    if(!socket) return;
+    if (!socket) return;
 
     socket.onmessage = async (event) => {
+      let pc: RTCPeerConnection | null = null;
       const message = JSON.parse(event.data);
       if (message.type === "createOffer") {
-        const pc = new RTCPeerConnection();
+        pc = new RTCPeerConnection();
         pc.setRemoteDescription(message.sdp);
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
+
+        if (!pc) return;
+
+        pc.onicecandidate = (event) => {
+          if (event.candidate) {
+            socket.send(JSON.stringify({
+              type: 'iceCandidate',
+              candidate: event.candidate,
+            }))
+          }
+        };
+
         socket.send(JSON.stringify({
           type: 'createAnswer',
           sdp: pc.localDescription
         }));
+      } else if (message?.type == "iceCandidate") {
+        if (pc !== null) {
+          // @ts-ignore
+          pc.addIceCandidate(message.candidate)
+        }
       }
     }
   }, [])
