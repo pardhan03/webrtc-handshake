@@ -10,7 +10,7 @@ const Sender = () => {
       console.log('connection established');
       socket.send(JSON.stringify({ type: "sender" }));
     }
-
+    setSocket(socket);
   }, []);
 
   async function startSendVideo() {
