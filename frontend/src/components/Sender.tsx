@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 
 const Sender = () => {
   const [socket, setSocket] = useState<WebSocket | null>(null);
@@ -8,24 +8,34 @@ const Sender = () => {
     setSocket(socket);
     socket.onopen = () => {
       console.log('connection established');
-      socket.send(JSON.stringify({ type: "sender"}));
+      socket.send(JSON.stringify({ type: "sender" }));
     }
+
   }, []);
 
   async function startSendVideo() {
-    const pc = new RTCPeerConnection();
-    const offer = await pc.createOffer();
+    if (!socket) return;
+
+    const pc = new RTCPeerConnection(); // crreat an offer
+    const offer = await pc.createOffer(); //sdp
     await pc.setLocalDescription(offer);
     socket?.send(JSON.stringify({
-      type: "create-offer",
+      type: "createOffer",
       sdp: pc.localDescription
     }))
+
+    socket.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      if (data?.type === "createAnswer") {
+        pc.setRemoteDescription(data.sdp);
+      }
+    }
   }
 
   return (
     <div>
       <p>Sender</p>
-      <button>Send video</button>
+      <button onClick={startSendVideo}>Send video</button>
     </div>
   )
 }
